@@ -1,5 +1,6 @@
 package ph.edu.auf.xavier.ardillo.climatrack
 
+import android.R.attr.apiKey
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
@@ -11,7 +12,14 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.tooling.preview.Preview
+import androidx.lifecycle.lifecycleScope
+import kotlinx.coroutines.launch
 import ph.edu.auf.xavier.ardillo.climatrack.ui.theme.ClimaTrackTheme
+import ph.edu.auf.xavier.ardillo.climatrack.repositories.WeatherRepositories
+import androidx.lifecycle.lifecycleScope
+import kotlinx.coroutines.launch
+import android.util.Log
+import ph.edu.auf.xavier.ardillo.climatrack.R
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -19,29 +27,9 @@ class MainActivity : ComponentActivity() {
         enableEdgeToEdge()
         setContent {
             ClimaTrackTheme {
-                Scaffold(modifier = Modifier.fillMaxSize()) { innerPadding ->
-                    Greeting(
-                        name = "Android",
-                        modifier = Modifier.padding(innerPadding)
-                    )
-                }
+                val apiKey = getString(R.string.openweather_api_key)
+                val repo = WeatherRepositories()
             }
         }
-    }
-}
-
-@Composable
-fun Greeting(name: String, modifier: Modifier = Modifier) {
-    Text(
-        text = "Hello $name!",
-        modifier = modifier
-    )
-}
-
-@Preview(showBackground = true)
-@Composable
-fun GreetingPreview() {
-    ClimaTrackTheme {
-        Greeting("Android")
     }
 }

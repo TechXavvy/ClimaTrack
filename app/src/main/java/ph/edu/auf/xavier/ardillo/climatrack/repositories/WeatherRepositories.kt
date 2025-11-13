@@ -9,4 +9,40 @@ class WeatherRepositories {
     suspend fun getCurrentWeather(lat: String, lon: String): WeatherModel {
         return weatherService.getCurrentWeather(lat, lon, "", "metric")
     }
+
+    suspend fun getCurrentWeather(
+        lat: String,
+        lon: String,
+        apiKey: String
+    ): WeatherModel {
+        return weatherService.getCurrentWeather(
+            lat = lat,
+            lon = lon,
+            appid = apiKey,
+            units = "metric"
+        )
+    }
+
+    suspend fun getAndCacheCurrent(
+        lat: Double,
+        lon: Double,
+        apiKey: String
+    ): WeatherModel {
+        val api = weatherService.getCurrentWeather(
+            lat = lat.toString(),
+            lon = lon.toString(),
+            appid = apiKey,
+            units = "metric"
+        )
+
+        val loc = ph.edu.auf.xavier.ardillo.climatrack.local.WeatherMapping.toLocation(lat, lon, api)
+        ph.edu.auf.xavier.ardillo.climatrack.local.WeatherDao.upsertLocation(loc)
+
+        val snap = ph.edu.auf.xavier.ardillo.climatrack.local.WeatherMapping.toSnapshot(loc.id, api)
+        ph.edu.auf.xavier.ardillo.climatrack.local.WeatherDao.saveSnapshot(snap)
+
+        return api
+    }
+
+
 }
