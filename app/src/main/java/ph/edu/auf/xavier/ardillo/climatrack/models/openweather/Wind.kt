@@ -1,4 +1,4 @@
-package ph.edu.auf.xavier.ardillo.climatrack.models
+package ph.edu.auf.xavier.ardillo.climatrack.models.openweather
 
 import com.google.gson.annotations.SerializedName
 

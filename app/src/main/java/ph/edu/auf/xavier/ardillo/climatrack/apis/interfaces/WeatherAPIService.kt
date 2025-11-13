@@ -1,11 +1,11 @@
 package ph.edu.auf.xavier.ardillo.climatrack.apis.interfaces
 
-import ph.edu.auf.xavier.ardillo.climatrack.models.WeatherModel
+import ph.edu.auf.xavier.ardillo.climatrack.models.openweather.WeatherModel
 import retrofit2.http.GET
 import retrofit2.http.Query
 
 interface WeatherAPIService {
-    @GET("weather")
+    @GET("data/2.5/weather")
     suspend fun getCurrentWeather(
         @Query("lat") lat: String,
         @Query("lon") lon: String,

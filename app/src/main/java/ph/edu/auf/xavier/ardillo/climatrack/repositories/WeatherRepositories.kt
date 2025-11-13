@@ -1,7 +1,7 @@
 package ph.edu.auf.xavier.ardillo.climatrack.repositories
 
 import ph.edu.auf.xavier.ardillo.climatrack.apis.factories.RetrofitFactory
-import ph.edu.auf.xavier.ardillo.climatrack.models.WeatherModel
+import ph.edu.auf.xavier.ardillo.climatrack.models.openweather.WeatherModel
 
 class WeatherRepositories {
     private val weatherService = RetrofitFactory.createWeatherAPIService("")
