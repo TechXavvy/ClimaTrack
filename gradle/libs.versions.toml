@@ -1,6 +1,6 @@
 [versions]
 agp = "8.13.1"
-kotlin = "2.0.21"
+kotlin = "2.2.0"
 coreKtx = "1.17.0"
 junit = "4.13.2"
 junitVersion = "1.3.0"
@@ -13,6 +13,8 @@ converterGson = "3.0.0"
 compose = "1.0.0-beta01"
 playServicesLocation = "21.3.0"
 retrofit = "3.0.0"
+realm-version = "3.2.8-2"
+
 
 [libraries]
 androidx-core-ktx = { group = "androidx.core", name = "core-ktx", version.ref = "coreKtx" }
@@ -34,9 +36,11 @@ converter-gson = { group = "com.squareup.retrofit2", name = "converter-gson", ve
 compose = { group = "com.github.bumptech.glide", name = "compose", version.ref = "compose" }
 play-services-location = { group = "com.google.android.gms", name = "play-services-location", version.ref = "playServicesLocation" }
 retrofit = { group = "com.squareup.retrofit2", name = "retrofit", version.ref = "retrofit" }
+realm-io = {group = "com.infomaniak.realm.kotlin", name = "library-based-android", version.ref = "realm-version"}
 
 [plugins]
 android-application = { id = "com.android.application", version.ref = "agp" }
 kotlin-android = { id = "org.jetbrains.kotlin.android", version.ref = "kotlin" }
 kotlin-compose = { id = "org.jetbrains.kotlin.plugin.compose", version.ref = "kotlin" }
+realm-android = {id = "com.infomaniak.realm.kotlin", version.ref = "realm-version"}
 
