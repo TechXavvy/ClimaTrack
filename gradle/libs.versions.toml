@@ -14,6 +14,7 @@ converterGson = "3.0.0"
 compose = "1.0.0-beta01"
 playServicesLocation = "21.3.0"
 retrofit = "3.0.0"
+navigationCompose = "2.9.6"
 
 
 [libraries]
@@ -37,6 +38,7 @@ converter-gson = { group = "com.squareup.retrofit2", name = "converter-gson", ve
 compose = { group = "com.github.bumptech.glide", name = "compose", version.ref = "compose" }
 play-services-location = { group = "com.google.android.gms", name = "play-services-location", version.ref = "playServicesLocation" }
 retrofit = { group = "com.squareup.retrofit2", name = "retrofit", version.ref = "retrofit" }
+androidx-navigation-compose = { group = "androidx.navigation", name = "navigation-compose", version.ref = "navigationCompose" }
 
 [plugins]
 realm-android = {id = "com.infomaniak.realm.kotlin", version.ref = "realm-version"}

@@ -60,6 +60,7 @@ dependencies {
     implementation(libs.compose)
     implementation(libs.play.services.location)
     implementation(libs.retrofit)
+    implementation(libs.androidx.navigation.compose)
     testImplementation(libs.junit)
     androidTestImplementation(libs.androidx.junit)
     androidTestImplementation(libs.androidx.espresso.core)

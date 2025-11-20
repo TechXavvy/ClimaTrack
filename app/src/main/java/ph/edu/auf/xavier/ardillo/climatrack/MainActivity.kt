@@ -20,6 +20,7 @@ import androidx.lifecycle.lifecycleScope
 import kotlinx.coroutines.launch
 import android.util.Log
 import ph.edu.auf.xavier.ardillo.climatrack.R
+import ph.edu.auf.xavier.ardillo.climatrack.ui.screens.AppNavigation
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -29,6 +30,7 @@ class MainActivity : ComponentActivity() {
             ClimaTrackTheme {
                 val apiKey = getString(R.string.openweather_api_key)
                 val repo = WeatherRepositories()
+                AppNavigation()
             }
         }
     }
