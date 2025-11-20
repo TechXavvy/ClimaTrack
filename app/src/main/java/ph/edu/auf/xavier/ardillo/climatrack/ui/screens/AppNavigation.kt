@@ -12,9 +12,10 @@ import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
+import com.google.android.gms.common.api.internal.ApiKey
 
 @Composable
-fun AppNavigation() {
+fun AppNavigation(apiKey: String) {
     val navController = rememberNavController()
     val navItems = listOf(Screen.Home, Screen.Checklist, Screen.Settings)
 
@@ -49,7 +50,7 @@ fun AppNavigation() {
                 startDestination = Screen.Home.route,
                 modifier = Modifier.padding(innerPadding)
             ) {
-                composable(Screen.Home.route) { HomeScreen() }
+                composable(Screen.Home.route) { HomeScreen(apiKey) }
                 composable(Screen.Checklist.route) { CheckListScreen() }
                 composable(Screen.Settings.route) { SettingsScreen() }
             }

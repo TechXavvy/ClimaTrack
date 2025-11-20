@@ -30,7 +30,7 @@ class MainActivity : ComponentActivity() {
             ClimaTrackTheme {
                 val apiKey = getString(R.string.openweather_api_key)
                 val repo = WeatherRepositories()
-                AppNavigation()
+                AppNavigation(apiKey)
             }
         }
     }

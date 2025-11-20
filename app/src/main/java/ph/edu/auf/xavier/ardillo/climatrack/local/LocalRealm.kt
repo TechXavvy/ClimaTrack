@@ -10,7 +10,8 @@ object LocalRealm {
         RealmConfiguration.create(
             schema = setOf(
                 LocationEntity::class,
-                WeatherSnapshot::class
+                WeatherSnapshot::class,
+                ph.edu.auf.xavier.ardillo.climatrack.local.models.ChecklistItem::class
             )
         )
     }
