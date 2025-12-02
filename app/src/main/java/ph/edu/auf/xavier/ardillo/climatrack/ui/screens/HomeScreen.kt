@@ -6,16 +6,15 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.viewmodel.compose.viewModel
 import kotlinx.coroutines.launch
 import ph.edu.auf.xavier.ardillo.climatrack.repositories.WeatherRepositories
+import ph.edu.auf.xavier.ardillo.climatrack.viewmodels.HomeViewModel
 
 @Composable
 fun HomeScreen(apiKey: String) {
-    val repo = remember { WeatherRepositories() }
-    var city by remember { mutableStateOf("--") }
-    var temp by remember { mutableStateOf("--") }
-    var status by remember { mutableStateOf("Idle") }
-    val scope = rememberCoroutineScope()
+    val vm: HomeViewModel = viewModel(factory = HomeViewModel.provideFactory(apiKey))
+    val state by vm.ui.collectAsState()
 
     Column(
         Modifier.fillMaxSize().padding(16.dp),
@@ -23,25 +22,19 @@ fun HomeScreen(apiKey: String) {
         verticalArrangement = Arrangement.Center
     ) {
         Text("Current Weather", style = MaterialTheme.typography.titleLarge)
-        Spacer(Modifier.height(12.dp))
-        Text("City: $city")
-        Text("Temp: $temp °C")
-        Spacer(Modifier.height(12.dp))
-        Text("Status: $status")
+        Spacer(Modifier.height(8.dp))
+        Text("City: ${state.city}")
+        Text("Temp: ${state.tempC} °C")
+        Spacer(Modifier.height(8.dp))
+        Text("Status: ${state.status}")
+        if (state.error != null) {
+            Spacer(Modifier.height(4.dp))
+            Text("Error: ${state.error}", color = MaterialTheme.colorScheme.error)
+        }
         Spacer(Modifier.height(16.dp))
         Button(onClick = {
-            scope.launch {
-                try {
-                    status = "Loading..."
-                    // Angeles City sample coordinates
-                    val result = repo.getAndCacheCurrent(15.1485, 120.5895, apiKey)
-                    city = result.name
-                    temp = result.main.temp.toString()
-                    status = "Done"
-                } catch (e: Exception) {
-                    status = "Error: ${e.message}"
-                }
-            }
+            // Example coords: Angeles City
+            vm.load(15.1485, 120.5895)
         }) {
             Text("Fetch Angeles City")
         }
