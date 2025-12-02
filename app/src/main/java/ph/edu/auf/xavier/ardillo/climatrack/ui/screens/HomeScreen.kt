@@ -7,12 +7,10 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
-import kotlinx.coroutines.launch
-import ph.edu.auf.xavier.ardillo.climatrack.repositories.WeatherRepositories
-import ph.edu.auf.xavier.ardillo.climatrack.viewmodels.HomeViewModel
 
 @Composable
 fun HomeScreen(apiKey: String) {
+    // Get a VM instance tied to this screen, with our factory to pass the key.
     val vm: HomeViewModel = viewModel(factory = HomeViewModel.provideFactory(apiKey))
     val state by vm.ui.collectAsState()
 
