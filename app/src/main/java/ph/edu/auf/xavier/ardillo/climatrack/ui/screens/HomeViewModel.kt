@@ -6,6 +6,7 @@ import androidx.lifecycle.viewModelScope
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
+import ph.edu.auf.xavier.ardillo.climatrack.repositories.LocationSuggestion
 import ph.edu.auf.xavier.ardillo.climatrack.repositories.WeatherRepositories
 import ph.edu.auf.xavier.ardillo.climatrack.ui.design.DayPart
 import ph.edu.auf.xavier.ardillo.climatrack.ui.design.iconFor
@@ -25,15 +26,19 @@ data class HomeUiState(
     val conditionMain: String = "--",
     val weatherCode: Int? = null,
 
-    // TODAY strip
+    // TODAY hourly
     val hourTimes: List<String> = emptyList(),
     val hourTemps: List<String> = emptyList(),
     val hourIcons: List<Int> = emptyList(),
 
-    // TOMORROW strip
+    // TOMORROW hourly
     val tomorrowTimes: List<String> = emptyList(),
     val tomorrowTemps: List<String> = emptyList(),
     val tomorrowIcons: List<Int> = emptyList(),
+
+    // Location picker
+    val suggestions: List<LocationSuggestion> = emptyList(),
+    val recents: List<LocationSuggestion> = emptyList(),
 
     val status: String = "Idle",
     val error: String? = null
@@ -47,19 +52,15 @@ class HomeViewModel(
     private val _ui = MutableStateFlow(HomeUiState())
     val ui: StateFlow<HomeUiState> = _ui
 
-    // Remember last coords so UI can request tomorrow on-demand
     private var lastLat: Double? = null
     private var lastLon: Double? = null
 
-    /** Initial load by current coordinates. */
     fun loadByCoords(lat: Double, lon: Double) {
         lastLat = lat
         lastLon = lon
-
         _ui.value = _ui.value.copy(status = "Loading...", error = null)
         viewModelScope.launch {
             try {
-                // ---- Current weather ----
                 val res = repo.getAndCacheCurrent(lat, lon, apiKey)
 
                 val windKmH = (res.wind.speed * 3.6)
@@ -81,30 +82,20 @@ class HomeViewModel(
                     error = null
                 )
 
-                // ---- TODAY hourly ----
+                // Today
                 runCatching {
                     val hourly = repo.getNext6Hourly(lat, lon, apiKey)
-
-                    val times = hourly.hours.map { slot -> formatHour(slot.epochSec, hourly.offsetSec) }
-                    val temps = hourly.hours.map { slot -> "%.0f° C".format(slot.tempC) }
-                    val icons = hourly.hours.map { slot ->
-                        val hour = hourOf(slot.epochSec, hourly.offsetSec)
-                        val part = when (hour) {
-                            in 5..11 -> DayPart.MORNING
-                            in 12..17 -> DayPart.AFTERNOON
-                            else -> DayPart.EVENING
-                        }
-                        iconFor(slot.code, part)
+                    val times = hourly.hours.map { formatHour(it.epochSec, hourly.offsetSec) }
+                    val temps = hourly.hours.map { "%.0f° C".format(it.tempC) }
+                    val icons = hourly.hours.map {
+                        val h = hourOf(it.epochSec, hourly.offsetSec)
+                        val part = when (h) { in 5..11 -> DayPart.MORNING; in 12..17 -> DayPart.AFTERNOON; else -> DayPart.EVENING }
+                        iconFor(it.code, part)
                     }
-
-                    _ui.value = _ui.value.copy(
-                        hourTimes = times,
-                        hourTemps = temps,
-                        hourIcons = icons
-                    )
+                    _ui.value = _ui.value.copy(hourTimes = times, hourTemps = temps, hourIcons = icons)
                 }
 
-                // (Optional) prefetch tomorrow quietly; comment out if you prefer on-click loading
+                // Prefetch tomorrow quietly
                 runCatching { loadTomorrowInternal() }
 
             } catch (e: Exception) {
@@ -113,7 +104,6 @@ class HomeViewModel(
         }
     }
 
-    /** UI calls this when the user taps the "Tomorrow" tab. */
     fun loadTomorrowIfNeeded() {
         viewModelScope.launch { loadTomorrowInternal() }
     }
@@ -121,29 +111,36 @@ class HomeViewModel(
     private suspend fun loadTomorrowInternal() {
         val lat = lastLat ?: return
         val lon = lastLon ?: return
-        if (_ui.value.tomorrowTimes.isNotEmpty()) return // already loaded
+        if (_ui.value.tomorrowTimes.isNotEmpty()) return
 
         runCatching {
             val bundle = repo.getTomorrow6Hourly(lat, lon, apiKey)
-
-            val times = bundle.hours.map { slot -> formatHour(slot.epochSec, bundle.offsetSec) }
-            val temps = bundle.hours.map { slot -> "%.0f° C".format(slot.tempC) }
-            val icons = bundle.hours.map { slot ->
-                val hour = hourOf(slot.epochSec, bundle.offsetSec)
-                val part = when (hour) {
-                    in 5..11 -> DayPart.MORNING
-                    in 12..17 -> DayPart.AFTERNOON
-                    else -> DayPart.EVENING
-                }
-                iconFor(slot.code, part)
+            val times = bundle.hours.map { formatHour(it.epochSec, bundle.offsetSec) }
+            val temps = bundle.hours.map { "%.0f° C".format(it.tempC) }
+            val icons = bundle.hours.map {
+                val h = hourOf(it.epochSec, bundle.offsetSec)
+                val part = when (h) { in 5..11 -> DayPart.MORNING; in 12..17 -> DayPart.AFTERNOON; else -> DayPart.EVENING }
+                iconFor(it.code, part)
             }
-
-            _ui.value = _ui.value.copy(
-                tomorrowTimes = times,
-                tomorrowTemps = temps,
-                tomorrowIcons = icons
-            )
+            _ui.value = _ui.value.copy(tomorrowTimes = times, tomorrowTemps = temps, tomorrowIcons = icons)
         }
+    }
+
+    /* -------- Location picker actions -------- */
+
+    fun refreshRecents() {
+        _ui.value = _ui.value.copy(recents = repo.recentLocations())
+    }
+
+    fun searchLocations(query: String) {
+        viewModelScope.launch {
+            val list = repo.searchLocations(query, apiKey)
+            _ui.value = _ui.value.copy(suggestions = list)
+        }
+    }
+
+    fun clearSuggestions() {
+        _ui.value = _ui.value.copy(suggestions = emptyList())
     }
 
     companion object {
@@ -161,7 +158,6 @@ class HomeViewModel(
 }
 
 /* ----- time helpers ----- */
-
 private val hhFormatter: DateTimeFormatter = DateTimeFormatter.ofPattern("HH:00")
 
 private fun formatHour(epochSec: Long, offsetSec: Int): String =

@@ -25,4 +25,8 @@ object WeatherDao {
             .find()
             .maxByOrNull { it.updatedAt }
     }
+
+    /** NEW: return all stored locations (you can add sorting or limit later). */
+    fun allLocations(): List<LocationEntity> =
+        LocalRealm.instance.query<LocationEntity>().find().sortedBy { it.name }
 }

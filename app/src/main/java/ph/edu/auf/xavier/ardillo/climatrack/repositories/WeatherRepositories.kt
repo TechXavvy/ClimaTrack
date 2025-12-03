@@ -2,13 +2,22 @@ package ph.edu.auf.xavier.ardillo.climatrack.repositories
 
 import android.util.Log
 import ph.edu.auf.xavier.ardillo.climatrack.apis.factories.RetrofitFactory
-import ph.edu.auf.xavier.ardillo.climatrack.models.openweather.ForecastResponse
-import ph.edu.auf.xavier.ardillo.climatrack.models.openweather.OneCallResponse
-import ph.edu.auf.xavier.ardillo.climatrack.models.openweather.WeatherModel
+import ph.edu.auf.xavier.ardillo.climatrack.models.openweather.*
 import kotlin.math.abs
 
 data class HourSlot(val epochSec: Long, val tempC: Double, val code: Int)
 data class HourlyBundle(val offsetSec: Int, val hours: List<HourSlot>)
+
+/** UI-friendly suggestion object */
+data class LocationSuggestion(
+    val name: String,
+    val country: String,
+    val state: String?,
+    val lat: Double,
+    val lon: Double
+) {
+    val display: String get() = listOfNotNull(name, state, country).joinToString(", ")
+}
 
 class WeatherRepositories {
     // api.openweathermap.org (free endpoints)
@@ -55,20 +64,20 @@ class WeatherRepositories {
         return api
     }
 
-    /** TODAY: next 6 hours starting at the next whole hour (local to location). */
+    /** TODAY: next 6 hours starting at the next whole hour (local). */
     suspend fun getNext6Hourly(
         lat: Double,
         lon: Double,
         apiKey: String
     ): HourlyBundle {
-        // 1) Prefer PRO Hourly 4 Days (1-hour resolution, Developer/Student access)
+        // 1) Prefer PRO Hourly 4 Days (1-hour resolution)
         runCatching {
             val res = proService.getHourly4Days(
                 lat = lat.toString(),
                 lon = lon.toString(),
                 appid = apiKey,
                 units = "metric",
-                cnt = 6 // exactly what UI needs
+                cnt = 6
             )
             val nowUtc = System.currentTimeMillis() / 1000L
             val hours = res.list
@@ -88,7 +97,7 @@ class WeatherRepositories {
             Log.w("ClimaTrack", "PRO hourly failed (${it.javaClass.simpleName}): ${it.message}")
         }
 
-        // 2) Try One Call 3.0 hourly (if your key has it enabled)
+        // 2) One Call 3.0 hourly
         runCatching {
             val one = weatherService.getOneCallHourly(
                 lat = lat.toString(),
@@ -100,7 +109,7 @@ class WeatherRepositories {
             Log.w("ClimaTrack", "OneCall 3.0 failed (${it.javaClass.simpleName}): ${it.message}")
         }
 
-        // 3) Fallback: 5-day/3-hour → interpolate to 1-hour slots
+        // 3) 5-day/3-hour → interpolate to 1-hour
         val fore = weatherService.getFiveDay3Hour(
             lat = lat.toString(),
             lon = lon.toString(),
@@ -109,25 +118,25 @@ class WeatherRepositories {
         return forecastToNext6(fore)
     }
 
-    /** TOMORROW: 6 hours starting at 00:00 (00:00–05:00) of the next local day. */
+    /** TOMORROW: 00:00–05:00 local (6 items). */
     suspend fun getTomorrow6Hourly(
         lat: Double,
         lon: Double,
         apiKey: String
     ): HourlyBundle {
-        // 1) Prefer PRO Hourly 4 Days (1h). Build exact local targets and pick nearest items.
+        // 1) PRO hourly
         runCatching {
             val res = proService.getHourly4Days(
                 lat = lat.toString(),
                 lon = lon.toString(),
                 appid = apiKey,
                 units = "metric",
-                cnt = 96 // ensure we have enough hours to cover tomorrow midnight window
+                cnt = 96
             )
             val offset = res.city.timezone
             val nowUtc = System.currentTimeMillis() / 1000L
             val localNow = nowUtc + offset
-            val localMidnightNext = ((localNow / 86400L) + 1L) * 86400L // next day's 00:00 local
+            val localMidnightNext = ((localNow / 86400L) + 1L) * 86400L
             val targetsLocal = (0 until 6).map { localMidnightNext + it * 3600L }
             val targetsUtc = targetsLocal.map { it - offset }
 
@@ -156,13 +165,46 @@ class WeatherRepositories {
             Log.w("ClimaTrack", "OneCall 3.0 (tomorrow) failed: ${it.message}")
         }
 
-        // 3) Fallback: 5-day/3-hour (interpolate)
+        // 3) 5-day/3-hour fallback
         val fore = weatherService.getFiveDay3Hour(
             lat = lat.toString(),
             lon = lon.toString(),
             appid = apiKey
         )
         return forecastToTomorrow6(fore)
+    }
+
+    /* ---------- NEW: search + recents ---------- */
+
+    suspend fun searchLocations(query: String, apiKey: String, limit: Int = 5): List<LocationSuggestion> {
+        if (query.length < 2) return emptyList()
+        val results = weatherService.geocodeDirect(query, limit, apiKey)
+        return results.map {
+            LocationSuggestion(
+                name = it.name,
+                country = it.country,
+                state = it.state,
+                lat = it.lat,
+                lon = it.lon
+            )
+        }
+    }
+
+    fun recentLocations(limit: Int = 10): List<LocationSuggestion> {
+        val all = ph.edu.auf.xavier.ardillo.climatrack.local.WeatherDao.allLocations()
+        return all
+            .distinctBy { it.name.trim().lowercase() + "|" + it.country }
+            .sortedBy { it.name }
+            .take(limit)
+            .map {
+                LocationSuggestion(
+                    name = it.name,
+                    country = it.country,
+                    state = null,
+                    lat = it.lat,
+                    lon = it.lon
+                )
+            }
     }
 
     /* ---------------- Internal mappers ---------------- */
@@ -193,12 +235,11 @@ class WeatherRepositories {
         val offset = res.timezoneOffset
         val nowUtc = System.currentTimeMillis() / 1000L
         val localNow = nowUtc + offset
-        val localMidnightNext = ((localNow / 86400L) + 1L) * 86400L  // next day's 00:00 local
+        val localMidnightNext = ((localNow / 86400L) + 1L) * 86400L
         val targetsLocal = (0 until 6).map { localMidnightNext + it * 3600L }
         val targetsUtc = targetsLocal.map { it - offset }
 
         val hours = targetsUtc.map { t ->
-            // OneCall hourly is 1h-step → pick nearest entry
             val nearest = res.hourly.minByOrNull { abs(it.dt - t) }!!
             HourSlot(
                 epochSec = t,
@@ -220,7 +261,6 @@ class WeatherRepositories {
         return buildFrom3hTargets(res, targetsUtc)
     }
 
-    /** Interpolate temps between 3h points; pick nearest weather code. */
     private fun buildFrom3hTargets(res: ForecastResponse, targetsUtc: List<Long>): HourlyBundle {
         val sorted = res.list.sortedBy { it.dt }
         val hours = targetsUtc.map { t ->

@@ -1,9 +1,13 @@
 package ph.edu.auf.xavier.ardillo.climatrack.ui.screens
 
 import android.Manifest
+import androidx.compose.animation.Crossfade
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -13,8 +17,8 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.composed
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.painter.Painter
 import androidx.compose.ui.layout.ContentScale
@@ -30,28 +34,23 @@ import com.google.accompanist.permissions.ExperimentalPermissionsApi
 import com.google.accompanist.permissions.MultiplePermissionsState
 import com.google.accompanist.permissions.isGranted
 import com.google.accompanist.permissions.rememberMultiplePermissionsState
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 import ph.edu.auf.xavier.ardillo.climatrack.location.LocationUtils
 import ph.edu.auf.xavier.ardillo.climatrack.ui.design.*
 import java.time.LocalTime
-import ph.edu.auf.xavier.ardillo.climatrack.ui.design.iconFor
-import androidx.compose.foundation.clickable
-import androidx.compose.ui.composed
-import androidx.compose.foundation.interaction.MutableInteractionSource
-import androidx.compose.runtime.remember
-import androidx.compose.animation.core.animateFloatAsState
-import androidx.compose.animation.core.tween
-import androidx.compose.runtime.getValue
-import androidx.compose.animation.Crossfade
+
 private enum class DayTab { TODAY, TOMORROW }
 
-@OptIn(ExperimentalPermissionsApi::class)
+@OptIn(ExperimentalPermissionsApi::class, ExperimentalMaterial3Api::class)
 @Composable
 fun HomeScreen(apiKey: String) {
     val vm: HomeViewModel = viewModel(factory = HomeViewModel.provideFactory(apiKey))
     val ui by vm.ui.collectAsState()
     val ctx = LocalContext.current
-    var selectedTab by remember { mutableStateOf(DayTab.TODAY) }
+    val scope = rememberCoroutineScope()
 
+    // Location permissions
     val perms: MultiplePermissionsState = rememberMultiplePermissionsState(
         listOf(
             Manifest.permission.ACCESS_FINE_LOCATION,
@@ -77,13 +76,20 @@ fun HomeScreen(apiKey: String) {
         }
     }
 
-    // Map weather/time -> artwork + gradient
+    // Visual theme binding
     val category = toCategory(ui.weatherCode)
     val dayPart = currentDayPart(LocalTime.now())
     val art = artFor(category, dayPart)
 
+    // Tabs (Today/Tomorrow)
+    var selectedTab by remember { mutableStateOf(DayTab.TODAY) }
+
+    // Location picker bottom sheet state
+    var showPicker by remember { mutableStateOf(false) }
+    val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+
     Box(Modifier.fillMaxSize()) {
-        // BACKGROUND IMAGE - Full screen
+        // BACKGROUND IMAGE
         val bgPainter: Painter = painterResource(id = art.backgroundRes)
         Image(
             painter = bgPainter,
@@ -102,7 +108,7 @@ fun HomeScreen(apiKey: String) {
         ) {
             Spacer(Modifier.height(16.dp))
 
-            // Top location with icons
+            // Top row (location + actions)
             Row(
                 Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
@@ -123,7 +129,7 @@ fun HomeScreen(apiKey: String) {
                         fontWeight = FontWeight.Bold
                     )
                 }
-                Row {
+                Row(verticalAlignment = Alignment.CenterVertically) {
                     Icon(
                         Icons.Default.Layers,
                         contentDescription = null,
@@ -131,27 +137,27 @@ fun HomeScreen(apiKey: String) {
                         modifier = Modifier.size(24.dp)
                     )
                     Spacer(Modifier.width(12.dp))
+                    // Place icon → opens picker
                     Icon(
                         Icons.Default.Place,
-                        contentDescription = null,
+                        contentDescription = "Choose location",
                         tint = Color.White,
-                        modifier = Modifier.size(24.dp)
+                        modifier = Modifier
+                            .size(24.dp)
+                            .noRippleClickable {
+                                vm.refreshRecents()
+                                showPicker = true
+                            }
                     )
                 }
             }
 
             Spacer(Modifier.height(32.dp))
 
-            // "Today" label with dots
-            Text(
-                text = "Today",
-                color = Color.White,
-                fontSize = 24.sp,
-                fontWeight = FontWeight.Bold
-            )
+            Text("Today", color = Color.White, fontSize = 24.sp, fontWeight = FontWeight.Bold)
             Spacer(Modifier.height(4.dp))
             Text(
-                text = "• • •",
+                "• • •",
                 color = Color.White.copy(alpha = 0.7f),
                 fontSize = 16.sp,
                 letterSpacing = 4.sp
@@ -183,7 +189,7 @@ fun HomeScreen(apiKey: String) {
 
             Spacer(Modifier.height(32.dp))
 
-            // "Weather Now" white card with rounded corners
+            // Weather Now card
             Surface(
                 shape = RoundedCornerShape(24.dp),
                 color = Color.White,
@@ -198,7 +204,6 @@ fun HomeScreen(apiKey: String) {
                     )
                     Spacer(Modifier.height(20.dp))
 
-                    // First row of metrics
                     Row(
                         Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.SpaceBetween
@@ -210,7 +215,6 @@ fun HomeScreen(apiKey: String) {
 
                     Spacer(Modifier.height(20.dp))
 
-                    // Second row of metrics
                     Row(
                         Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.SpaceBetween
@@ -224,21 +228,18 @@ fun HomeScreen(apiKey: String) {
 
             Spacer(Modifier.height(24.dp))
 
-            // Today/Tomorrow row
+            // Today/Tomorrow row (clickable)
             TodayTomorrowRow(
                 selected = selectedTab,
                 onSelect = { tab ->
                     selectedTab = tab
-                    if (tab == DayTab.TOMORROW) {
-                        vm.loadTomorrowIfNeeded()
-                    }
+                    if (tab == DayTab.TOMORROW) vm.loadTomorrowIfNeeded()
                 }
             )
 
-
             Spacer(Modifier.height(16.dp))
 
-            // Hourly forecast strip
+            // Crossfade between Today and Tomorrow strips
             Crossfade(targetState = selectedTab, label = "hourly_tabs") { tab ->
                 val hTimes = if (tab == DayTab.TODAY) ui.hourTimes else ui.tomorrowTimes
                 val hTemps = if (tab == DayTab.TODAY) ui.hourTemps else ui.tomorrowTemps
@@ -252,8 +253,6 @@ fun HomeScreen(apiKey: String) {
                 )
             }
 
-
-
             Spacer(Modifier.height(16.dp))
         }
 
@@ -266,7 +265,149 @@ fun HomeScreen(apiKey: String) {
             )
         }
     }
+
+    // Location Picker Bottom Sheet
+    if (showPicker) {
+        ModalBottomSheet(
+            onDismissRequest = { showPicker = false },
+            sheetState = sheetState
+        ) {
+            LocationPickerSheet(
+                ui = ui,
+                onQuery = { q -> vm.searchLocations(q) },
+                onClearQuery = { vm.clearSuggestions() },
+                onSelect = { lat, lon ->
+                    scope.launch {
+                        // animate close first (suspend)
+                        sheetState.hide()
+                        showPicker = false
+                        // then load the new location
+                        vm.loadByCoords(lat, lon)
+                    }
+                }
+            )
+        }
+    }
 }
+
+/* ---------- Picker content ---------- */
+
+@Composable
+private fun LocationPickerSheet(
+    ui: HomeUiState,
+    onQuery: (String) -> Unit,
+    onClearQuery: () -> Unit,
+    onSelect: (Double, Double) -> Unit
+) {
+    var query by remember { mutableStateOf("") }
+
+    // Debounce typing for suggestions
+    LaunchedEffect(query) {
+        if (query.length >= 2) {
+            delay(300)
+            onQuery(query)
+        } else {
+            onClearQuery()
+        }
+    }
+
+    Column(
+        Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 16.dp, vertical = 8.dp)
+    ) {
+        Text(
+            "Choose location",
+            style = MaterialTheme.typography.titleLarge,
+            modifier = Modifier.padding(bottom = 8.dp)
+        )
+
+        OutlinedTextField(
+            value = query,
+            onValueChange = { query = it },
+            placeholder = { Text("Search city, province, or country") },
+            leadingIcon = { Icon(Icons.Default.Search, contentDescription = null) },
+            singleLine = true,
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(bottom = 8.dp)
+        )
+
+        LazyColumn(
+            modifier = Modifier
+                .fillMaxWidth()
+                .heightIn(max = 320.dp)
+        ) {
+            if (ui.suggestions.isNotEmpty()) {
+                item {
+                    Text(
+                        "Suggestions",
+                        fontWeight = FontWeight.Bold,
+                        modifier = Modifier.padding(8.dp)
+                    )
+                }
+                items(ui.suggestions) { s ->
+                    Row(
+                        Modifier
+                            .fillMaxWidth()
+                            .noRippleClickable { onSelect(s.lat, s.lon) }
+                            .padding(horizontal = 8.dp, vertical = 10.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Icon(Icons.Default.Place, contentDescription = null)
+                        Spacer(Modifier.width(10.dp))
+                        Column {
+                            Text(s.display, fontWeight = FontWeight.Bold)
+                            Text(
+                                "Lat ${"%.2f".format(s.lat)}, Lon ${"%.2f".format(s.lon)}",
+                                color = Color.Gray,
+                                fontSize = 12.sp
+                            )
+                        }
+                    }
+                }
+            }
+
+            if (ui.recents.isNotEmpty()) {
+                item {
+                    Spacer(Modifier.height(8.dp))
+                    Text(
+                        "Recent",
+                        fontWeight = FontWeight.Bold,
+                        modifier = Modifier.padding(8.dp)
+                    )
+                }
+                items(ui.recents) { r ->
+                    Row(
+                        Modifier
+                            .fillMaxWidth()
+                            .noRippleClickable { onSelect(r.lat, r.lon) }
+                            .padding(horizontal = 8.dp, vertical = 10.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Icon(Icons.Default.History, contentDescription = null)
+                        Spacer(Modifier.width(10.dp))
+                        Text(r.display)
+                    }
+                }
+            }
+
+            if (ui.suggestions.isEmpty() && ui.recents.isEmpty()) {
+                item {
+                    Text(
+                        "No places yet. Try searching above.",
+                        modifier = Modifier.padding(8.dp),
+                        color = Color.Gray
+                    )
+                }
+            }
+        }
+
+        Spacer(Modifier.height(16.dp))
+    }
+}
+
+/* ---------- Reused widgets ---------- */
 
 @Composable
 private fun Metric(
@@ -278,27 +419,11 @@ private fun Metric(
         horizontalAlignment = Alignment.CenterHorizontally,
         modifier = Modifier.width(90.dp)
     ) {
-        Icon(
-            icon,
-            contentDescription = label,
-            tint = Color.Black,
-            modifier = Modifier.size(32.dp)
-        )
+        Icon(icon, contentDescription = label, tint = Color.Black, modifier = Modifier.size(32.dp))
         Spacer(Modifier.height(8.dp))
-        Text(
-            label,
-            color = Color.Gray,
-            fontSize = 11.sp,
-            textAlign = TextAlign.Center
-        )
+        Text(label, color = Color.Gray, fontSize = 11.sp, textAlign = TextAlign.Center)
         Spacer(Modifier.height(4.dp))
-        Text(
-            value,
-            color = Color.Black,
-            fontSize = 16.sp,
-            fontWeight = FontWeight.Bold,
-            textAlign = TextAlign.Center
-        )
+        Text(value, color = Color.Black, fontSize = 16.sp, fontWeight = FontWeight.Bold, textAlign = TextAlign.Center)
     }
 }
 
@@ -307,18 +432,6 @@ private fun TodayTomorrowRow(
     selected: DayTab,
     onSelect: (DayTab) -> Unit
 ) {
-    // Animate alpha for the "dim" state
-    val dimAlphaToday by animateFloatAsState(
-        targetValue = if (selected == DayTab.TODAY) 1f else 0.6f,
-        animationSpec = tween(durationMillis = 180),
-        label = "todayAlpha"
-    )
-    val dimAlphaTomorrow by animateFloatAsState(
-        targetValue = if (selected == DayTab.TOMORROW) 1f else 0.6f,
-        animationSpec = tween(durationMillis = 180),
-        label = "tomorrowAlpha"
-    )
-
     Row(
         Modifier.fillMaxWidth(),
         horizontalArrangement = Arrangement.SpaceBetween,
@@ -329,21 +442,20 @@ private fun TodayTomorrowRow(
                 "Today",
                 fontWeight = FontWeight.Bold,
                 fontSize = 22.sp,
-                color = Color.White.copy(alpha = dimAlphaToday),
+                color = Color.White.copy(alpha = if (selected == DayTab.TODAY) 1f else 0.6f),
                 modifier = Modifier
                     .padding(end = 16.dp)
                     .noRippleClickable { onSelect(DayTab.TODAY) }
             )
             Text(
                 "Tomorrow",
+                color = Color.White.copy(alpha = if (selected == DayTab.TOMORROW) 1f else 0.6f),
                 fontSize = 22.sp,
-                color = Color.White.copy(alpha = dimAlphaTomorrow),
                 modifier = Modifier.noRippleClickable { onSelect(DayTab.TOMORROW) }
             )
         }
     }
 }
-
 
 @Composable
 private fun HourlyStrip(
@@ -366,12 +478,7 @@ private fun HourlyStrip(
 }
 
 @Composable
-private fun HourChip(
-    time: String,
-    temp: String,
-    selected: Boolean,
-    iconRes: Int
-) {
+private fun HourChip(time: String, temp: String, selected: Boolean, iconRes: Int) {
     val bg = if (selected) Color(0xFF49B4FF) else Color.White.copy(alpha = 0.95f)
     val txt = if (selected) Color.White else Color.Black
 
@@ -395,7 +502,7 @@ private fun HourChip(
     }
 }
 
-
+/* no-ripple helper */
 private fun Modifier.noRippleClickable(onClick: () -> Unit): Modifier = composed {
     this.then(
         Modifier.clickable(
@@ -404,5 +511,3 @@ private fun Modifier.noRippleClickable(onClick: () -> Unit): Modifier = composed
         ) { onClick() }
     )
 }
-
-
