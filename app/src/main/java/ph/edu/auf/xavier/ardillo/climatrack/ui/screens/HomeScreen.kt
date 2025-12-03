@@ -298,11 +298,6 @@ private fun TodayTomorrowRow() {
                 fontSize = 22.sp
             )
         }
-        Text(
-            "24 hours >",
-            color = Color.White.copy(alpha = 0.6f),
-            fontSize = 14.sp
-        )
     }
 }
 
