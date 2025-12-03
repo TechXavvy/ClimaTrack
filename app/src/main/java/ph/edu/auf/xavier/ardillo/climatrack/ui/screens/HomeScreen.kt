@@ -33,6 +33,8 @@ import com.google.accompanist.permissions.rememberMultiplePermissionsState
 import ph.edu.auf.xavier.ardillo.climatrack.location.LocationUtils
 import ph.edu.auf.xavier.ardillo.climatrack.ui.design.*
 import java.time.LocalTime
+import ph.edu.auf.xavier.ardillo.climatrack.ui.design.iconFor
+
 
 @OptIn(ExperimentalPermissionsApi::class)
 @Composable
@@ -222,7 +224,9 @@ fun HomeScreen(apiKey: String) {
             HourlyStrip(
                 hours = listOf("09:00", "10:00", "11:00", "12:00", "13:00"),
                 temps = List(5) { "${ui.tempC}° C" },
-                selectedIndex = 1
+                selectedIndex = 1,
+                // NEW: pass one icon (until you wire real hourly codes)
+                iconRes = iconFor(ui.weatherCode, dayPart)
             )
 
             Spacer(Modifier.height(16.dp))
@@ -306,7 +310,8 @@ private fun TodayTomorrowRow() {
 private fun HourlyStrip(
     hours: List<String>,
     temps: List<String>,
-    selectedIndex: Int
+    selectedIndex: Int,
+    @androidx.annotation.DrawableRes iconRes: Int
 ) {
     LazyRow(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
         items(hours.indices.toList()) { idx ->
@@ -314,14 +319,21 @@ private fun HourlyStrip(
             HourChip(
                 time = hours[idx],
                 temp = temps[idx],
-                selected = selected
+                selected = selected,
+                iconRes = iconRes
             )
         }
     }
 }
 
+
 @Composable
-private fun HourChip(time: String, temp: String, selected: Boolean) {
+private fun HourChip(
+    time: String,
+    temp: String,
+    selected: Boolean,
+    @androidx.annotation.DrawableRes iconRes: Int
+) {
     val bg = if (selected) Color(0xFF49B4FF) else Color.White.copy(alpha = 0.95f)
     val txt = if (selected) Color.White else Color.Black
 
@@ -333,25 +345,15 @@ private fun HourChip(time: String, temp: String, selected: Boolean) {
             .padding(vertical = 16.dp, horizontal = 12.dp),
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
-        // Weather icon placeholder (you can add actual weather icons)
-        Icon(
-            Icons.Default.WbSunny,
+        // EXACT same size/position as your placeholder
+        Image(
+            painter = painterResource(iconRes),
             contentDescription = null,
-            tint = txt.copy(alpha = 0.9f),
             modifier = Modifier.size(32.dp)
         )
         Spacer(Modifier.height(8.dp))
-        Text(
-            temp,
-            color = txt,
-            fontWeight = FontWeight.Bold,
-            fontSize = 16.sp
-        )
+        Text(temp, color = txt, fontWeight = FontWeight.Bold, fontSize = 16.sp)
         Spacer(Modifier.height(4.dp))
-        Text(
-            time,
-            color = txt.copy(alpha = 0.7f),
-            fontSize = 12.sp
-        )
+        Text(time, color = txt.copy(alpha = 0.7f), fontSize = 12.sp)
     }
 }
