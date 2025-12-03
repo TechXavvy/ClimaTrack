@@ -34,7 +34,15 @@ import ph.edu.auf.xavier.ardillo.climatrack.location.LocationUtils
 import ph.edu.auf.xavier.ardillo.climatrack.ui.design.*
 import java.time.LocalTime
 import ph.edu.auf.xavier.ardillo.climatrack.ui.design.iconFor
-
+import androidx.compose.foundation.clickable
+import androidx.compose.ui.composed
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.runtime.remember
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.tween
+import androidx.compose.runtime.getValue
+import androidx.compose.animation.Crossfade
+private enum class DayTab { TODAY, TOMORROW }
 
 @OptIn(ExperimentalPermissionsApi::class)
 @Composable
@@ -42,6 +50,7 @@ fun HomeScreen(apiKey: String) {
     val vm: HomeViewModel = viewModel(factory = HomeViewModel.provideFactory(apiKey))
     val ui by vm.ui.collectAsState()
     val ctx = LocalContext.current
+    var selectedTab by remember { mutableStateOf(DayTab.TODAY) }
 
     val perms: MultiplePermissionsState = rememberMultiplePermissionsState(
         listOf(
@@ -216,17 +225,33 @@ fun HomeScreen(apiKey: String) {
             Spacer(Modifier.height(24.dp))
 
             // Today/Tomorrow row
-            TodayTomorrowRow()
+            TodayTomorrowRow(
+                selected = selectedTab,
+                onSelect = { tab ->
+                    selectedTab = tab
+                    if (tab == DayTab.TOMORROW) {
+                        vm.loadTomorrowIfNeeded()
+                    }
+                }
+            )
+
 
             Spacer(Modifier.height(16.dp))
 
             // Hourly forecast strip
-            HourlyStrip(
-                hours = ui.hourTimes.ifEmpty { listOf("—","—","—","—","—","—") },
-                temps = ui.hourTemps.ifEmpty { listOf("—","—","—","—","—","—") },
-                icons = ui.hourIcons.ifEmpty { List(6) { ph.edu.auf.xavier.ardillo.climatrack.R.drawable.ic_cloudy } },
-                selectedIndex = 1
-            )
+            Crossfade(targetState = selectedTab, label = "hourly_tabs") { tab ->
+                val hTimes = if (tab == DayTab.TODAY) ui.hourTimes else ui.tomorrowTimes
+                val hTemps = if (tab == DayTab.TODAY) ui.hourTemps else ui.tomorrowTemps
+                val hIcons = if (tab == DayTab.TODAY) ui.hourIcons else ui.tomorrowIcons
+
+                HourlyStrip(
+                    hours = hTimes.ifEmpty { listOf("—","—","—","—","—","—") },
+                    temps = hTemps.ifEmpty { listOf("—","—","—","—","—","—") },
+                    icons = hIcons.ifEmpty { List(6) { ph.edu.auf.xavier.ardillo.climatrack.R.drawable.ic_cloudy } },
+                    selectedIndex = 1
+                )
+            }
+
 
 
             Spacer(Modifier.height(16.dp))
@@ -278,7 +303,22 @@ private fun Metric(
 }
 
 @Composable
-private fun TodayTomorrowRow() {
+private fun TodayTomorrowRow(
+    selected: DayTab,
+    onSelect: (DayTab) -> Unit
+) {
+    // Animate alpha for the "dim" state
+    val dimAlphaToday by animateFloatAsState(
+        targetValue = if (selected == DayTab.TODAY) 1f else 0.6f,
+        animationSpec = tween(durationMillis = 180),
+        label = "todayAlpha"
+    )
+    val dimAlphaTomorrow by animateFloatAsState(
+        targetValue = if (selected == DayTab.TOMORROW) 1f else 0.6f,
+        animationSpec = tween(durationMillis = 180),
+        label = "tomorrowAlpha"
+    )
+
     Row(
         Modifier.fillMaxWidth(),
         horizontalArrangement = Arrangement.SpaceBetween,
@@ -289,17 +329,21 @@ private fun TodayTomorrowRow() {
                 "Today",
                 fontWeight = FontWeight.Bold,
                 fontSize = 22.sp,
-                color = Color.White
+                color = Color.White.copy(alpha = dimAlphaToday),
+                modifier = Modifier
+                    .padding(end = 16.dp)
+                    .noRippleClickable { onSelect(DayTab.TODAY) }
             )
-            Spacer(Modifier.width(16.dp))
             Text(
                 "Tomorrow",
-                color = Color.White.copy(alpha = 0.6f),
-                fontSize = 22.sp
+                fontSize = 22.sp,
+                color = Color.White.copy(alpha = dimAlphaTomorrow),
+                modifier = Modifier.noRippleClickable { onSelect(DayTab.TOMORROW) }
             )
         }
     }
 }
+
 
 @Composable
 private fun HourlyStrip(
@@ -320,8 +364,6 @@ private fun HourlyStrip(
         }
     }
 }
-
-
 
 @Composable
 private fun HourChip(
@@ -352,4 +394,15 @@ private fun HourChip(
         Text(time, color = txt.copy(alpha = 0.7f), fontSize = 12.sp)
     }
 }
+
+
+private fun Modifier.noRippleClickable(onClick: () -> Unit): Modifier = composed {
+    this.then(
+        Modifier.clickable(
+            indication = null,
+            interactionSource = remember { MutableInteractionSource() }
+        ) { onClick() }
+    )
+}
+
 

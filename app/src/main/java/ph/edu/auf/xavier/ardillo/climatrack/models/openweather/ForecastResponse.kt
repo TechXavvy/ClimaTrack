@@ -2,13 +2,17 @@ package ph.edu.auf.xavier.ardillo.climatrack.models.openweather
 
 import com.google.gson.annotations.SerializedName
 
+// Unified models used by BOTH:
+// - /data/2.5/forecast (3-hour steps)
+// - pro /data/2.5/forecast/hourly (1-hour steps)
 data class ForecastResponse(
     @SerializedName("city") val city: ForecastCity,
     @SerializedName("list") val list: List<ForecastItem>
 )
 
 data class ForecastCity(
-    @SerializedName("timezone") val timezone: Int // seconds offset from UTC
+    // seconds offset from UTC for the requested location
+    @SerializedName("timezone") val timezone: Int
 )
 
 data class ForecastItem(

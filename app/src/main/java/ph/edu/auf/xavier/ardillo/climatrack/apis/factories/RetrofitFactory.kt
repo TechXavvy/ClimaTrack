@@ -15,4 +15,15 @@ object RetrofitFactory {
             .build()
             .create(WeatherAPIService::class.java)
     }
+
+    private const val PRO_BASE_URL = "https://pro.openweathermap.org/"
+
+    fun createWeatherAPIServicePro(): WeatherAPIService {
+        return Retrofit.Builder()
+            .baseUrl(PRO_BASE_URL)
+            .addConverterFactory(GsonConverterFactory.create())
+            .build()
+            .create(WeatherAPIService::class.java)
+    }
+
 }

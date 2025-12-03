@@ -22,13 +22,18 @@ data class HomeUiState(
     val humidityPct: String = "--",
     val pressureMbar: String = "--",
     val rainfallMm: String = "0",
-    val conditionMain: String = "--",    // e.g., SUNNY / RAINY / CLOUDS text
-    val weatherCode: Int? = null,        // to map visuals
+    val conditionMain: String = "--",
+    val weatherCode: Int? = null,
 
-    // Hourly strip (next 6 hours from the next whole hour)
-    val hourTimes: List<String> = emptyList(),   // ["21:00", "22:00", ...]
-    val hourTemps: List<String> = emptyList(),   // ["30° C", ...]
-    val hourIcons: List<Int> = emptyList(),      // drawable res ids
+    // TODAY strip
+    val hourTimes: List<String> = emptyList(),
+    val hourTemps: List<String> = emptyList(),
+    val hourIcons: List<Int> = emptyList(),
+
+    // TOMORROW strip
+    val tomorrowTimes: List<String> = emptyList(),
+    val tomorrowTemps: List<String> = emptyList(),
+    val tomorrowIcons: List<Int> = emptyList(),
 
     val status: String = "Idle",
     val error: String? = null
@@ -42,17 +47,24 @@ class HomeViewModel(
     private val _ui = MutableStateFlow(HomeUiState())
     val ui: StateFlow<HomeUiState> = _ui
 
-    /** Call this once you have coordinates. */
+    // Remember last coords so UI can request tomorrow on-demand
+    private var lastLat: Double? = null
+    private var lastLon: Double? = null
+
+    /** Initial load by current coordinates. */
     fun loadByCoords(lat: Double, lon: Double) {
+        lastLat = lat
+        lastLon = lon
+
         _ui.value = _ui.value.copy(status = "Loading...", error = null)
         viewModelScope.launch {
             try {
                 // ---- Current weather ----
                 val res = repo.getAndCacheCurrent(lat, lon, apiKey)
 
-                val windKmH = (res.wind.speed * 3.6) // m/s -> km/h
+                val windKmH = (res.wind.speed * 3.6)
                 val feels = res.main.feelsLike
-                val rainMm = 0.0 // WeatherModel has no 'rain' field in your current schema
+                val rainMm = 0.0
 
                 _ui.value = HomeUiState(
                     city = res.name,
@@ -69,21 +81,12 @@ class HomeViewModel(
                     error = null
                 )
 
-                // ---- Hourly (next 6 from next whole hour) ----
-                try {
+                // ---- TODAY hourly ----
+                runCatching {
                     val hourly = repo.getNext6Hourly(lat, lon, apiKey)
 
-                    // Times formatted for the location's timezone
-                    val times = hourly.hours.map { slot ->
-                        formatHour(slot.epochSec, hourly.offsetSec)
-                    }
-
-                    // Temps formatted as "30° C"
-                    val temps = hourly.hours.map { slot ->
-                        "%.0f° C".format(slot.tempC)
-                    }
-
-                    // Icon per slot using its local hour -> DayPart
+                    val times = hourly.hours.map { slot -> formatHour(slot.epochSec, hourly.offsetSec) }
+                    val temps = hourly.hours.map { slot -> "%.0f° C".format(slot.tempC) }
                     val icons = hourly.hours.map { slot ->
                         val hour = hourOf(slot.epochSec, hourly.offsetSec)
                         val part = when (hour) {
@@ -99,13 +102,47 @@ class HomeViewModel(
                         hourTemps = temps,
                         hourIcons = icons
                     )
-                } catch (_: Exception) {
-                    // ignore hourly failure; keep current weather
                 }
+
+                // (Optional) prefetch tomorrow quietly; comment out if you prefer on-click loading
+                runCatching { loadTomorrowInternal() }
 
             } catch (e: Exception) {
                 _ui.value = _ui.value.copy(status = "Error", error = e.message ?: "Unknown error")
             }
+        }
+    }
+
+    /** UI calls this when the user taps the "Tomorrow" tab. */
+    fun loadTomorrowIfNeeded() {
+        viewModelScope.launch { loadTomorrowInternal() }
+    }
+
+    private suspend fun loadTomorrowInternal() {
+        val lat = lastLat ?: return
+        val lon = lastLon ?: return
+        if (_ui.value.tomorrowTimes.isNotEmpty()) return // already loaded
+
+        runCatching {
+            val bundle = repo.getTomorrow6Hourly(lat, lon, apiKey)
+
+            val times = bundle.hours.map { slot -> formatHour(slot.epochSec, bundle.offsetSec) }
+            val temps = bundle.hours.map { slot -> "%.0f° C".format(slot.tempC) }
+            val icons = bundle.hours.map { slot ->
+                val hour = hourOf(slot.epochSec, bundle.offsetSec)
+                val part = when (hour) {
+                    in 5..11 -> DayPart.MORNING
+                    in 12..17 -> DayPart.AFTERNOON
+                    else -> DayPart.EVENING
+                }
+                iconFor(slot.code, part)
+            }
+
+            _ui.value = _ui.value.copy(
+                tomorrowTimes = times,
+                tomorrowTemps = temps,
+                tomorrowIcons = icons
+            )
         }
     }
 
@@ -122,6 +159,8 @@ class HomeViewModel(
             }
     }
 }
+
+/* ----- time helpers ----- */
 
 private val hhFormatter: DateTimeFormatter = DateTimeFormatter.ofPattern("HH:00")
 

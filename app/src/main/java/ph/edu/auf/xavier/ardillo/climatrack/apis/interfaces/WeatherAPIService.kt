@@ -32,4 +32,13 @@ interface WeatherAPIService {
         @Query("appid") appid: String
     ): ForecastResponse
 
+    @GET("data/2.5/forecast/hourly")
+    suspend fun getHourly4Days(
+        @Query("lat") lat: String,
+        @Query("lon") lon: String,
+        @Query("appid") appid: String,
+        @Query("units") units: String = "metric",
+        @Query("cnt") cnt: Int = 6 // we only need the next 6 hours
+    ): ForecastResponse
+
 }
