@@ -44,7 +44,10 @@ private enum class DayTab { TODAY, TOMORROW }
 
 @OptIn(ExperimentalPermissionsApi::class, ExperimentalMaterial3Api::class)
 @Composable
-fun HomeScreen(apiKey: String) {
+fun HomeScreen(
+    apiKey: String,
+    onOpenChecklist: () -> Unit
+) {
     val vm: HomeViewModel = viewModel(factory = HomeViewModel.provideFactory(apiKey))
     val ui by vm.ui.collectAsState()
     val ctx = LocalContext.current
@@ -130,14 +133,17 @@ fun HomeScreen(apiKey: String) {
                     )
                 }
                 Row(verticalAlignment = Alignment.CenterVertically) {
+                    // STACK / LAYERS → navigate to Checklist
                     Icon(
                         Icons.Default.Layers,
-                        contentDescription = null,
+                        contentDescription = "Open checklist",
                         tint = Color.White,
-                        modifier = Modifier.size(24.dp)
+                        modifier = Modifier
+                            .size(24.dp)
+                            .noRippleClickable { onOpenChecklist() }
                     )
                     Spacer(Modifier.width(12.dp))
-                    // Place icon → opens picker
+                    // PLACE icon → opens location picker
                     Icon(
                         Icons.Default.Place,
                         contentDescription = "Choose location",
@@ -277,11 +283,10 @@ fun HomeScreen(apiKey: String) {
                 onQuery = { q -> vm.searchLocations(q) },
                 onClearQuery = { vm.clearSuggestions() },
                 onSelect = { lat, lon ->
+                    // Close the sheet and load
                     scope.launch {
-                        // animate close first (suspend)
                         sheetState.hide()
                         showPicker = false
-                        // then load the new location
                         vm.loadByCoords(lat, lon)
                     }
                 }
