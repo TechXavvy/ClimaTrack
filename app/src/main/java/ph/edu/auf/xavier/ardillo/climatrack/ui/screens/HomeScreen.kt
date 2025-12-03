@@ -222,12 +222,12 @@ fun HomeScreen(apiKey: String) {
 
             // Hourly forecast strip
             HourlyStrip(
-                hours = listOf("09:00", "10:00", "11:00", "12:00", "13:00"),
-                temps = List(5) { "${ui.tempC}° C" },
-                selectedIndex = 1,
-                // NEW: pass one icon (until you wire real hourly codes)
-                iconRes = iconFor(ui.weatherCode, dayPart)
+                hours = ui.hourTimes.ifEmpty { listOf("—","—","—","—","—","—") },
+                temps = ui.hourTemps.ifEmpty { listOf("—","—","—","—","—","—") },
+                icons = ui.hourIcons.ifEmpty { List(6) { ph.edu.auf.xavier.ardillo.climatrack.R.drawable.ic_cloudy } },
+                selectedIndex = 1
             )
+
 
             Spacer(Modifier.height(16.dp))
         }
@@ -305,8 +305,8 @@ private fun TodayTomorrowRow() {
 private fun HourlyStrip(
     hours: List<String>,
     temps: List<String>,
-    selectedIndex: Int,
-    @androidx.annotation.DrawableRes iconRes: Int
+    icons: List<Int>,
+    selectedIndex: Int
 ) {
     LazyRow(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
         items(hours.indices.toList()) { idx ->
@@ -315,11 +315,12 @@ private fun HourlyStrip(
                 time = hours[idx],
                 temp = temps[idx],
                 selected = selected,
-                iconRes = iconRes
+                iconRes = icons[idx]
             )
         }
     }
 }
+
 
 
 @Composable
@@ -327,7 +328,7 @@ private fun HourChip(
     time: String,
     temp: String,
     selected: Boolean,
-    @androidx.annotation.DrawableRes iconRes: Int
+    iconRes: Int
 ) {
     val bg = if (selected) Color(0xFF49B4FF) else Color.White.copy(alpha = 0.95f)
     val txt = if (selected) Color.White else Color.Black
@@ -340,7 +341,6 @@ private fun HourChip(
             .padding(vertical = 16.dp, horizontal = 12.dp),
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
-        // EXACT same size/position as your placeholder
         Image(
             painter = painterResource(iconRes),
             contentDescription = null,
@@ -352,3 +352,4 @@ private fun HourChip(
         Text(time, color = txt.copy(alpha = 0.7f), fontSize = 12.sp)
     }
 }
+
