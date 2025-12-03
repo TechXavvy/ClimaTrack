@@ -10,10 +10,19 @@ import ph.edu.auf.xavier.ardillo.climatrack.repositories.WeatherRepositories
 
 data class HomeUiState(
     val city: String = "--",
+    val country: String = "--",
     val tempC: String = "--",
+    val feelsLikeC: String = "--",
+    val windKmh: String = "--",
+    val humidityPct: String = "--",
+    val pressureMbar: String = "--",
+    val rainfallMm: String = "0",
+    val conditionMain: String = "--",    // e.g., SUNNY / RAINY / CLOUDS text
+    val weatherCode: Int? = null,        // to map visuals
     val status: String = "Idle",
     val error: String? = null
 )
+
 
 class HomeViewModel(
     private val repo: WeatherRepositories,
@@ -28,10 +37,24 @@ class HomeViewModel(
         _ui.value = _ui.value.copy(status = "Loading...", error = null)
         viewModelScope.launch {
             try {
-                val result = repo.getAndCacheCurrent(lat, lon, apiKey)
+                val res = repo.getAndCacheCurrent(lat, lon, apiKey)
+
+                // OpenWeather wind.speed is m/s by default in metric; convert to km/h
+                val windKmH = (res.wind.speed * 3.6)
+                val feels = res.main.feelsLike
+                val rainMm = 0.0 // your current WeatherModel has no 'rain' field; keep 0 for now
+
                 _ui.value = HomeUiState(
-                    city = result.name,
-                    tempC = result.main.temp.toString(),
+                    city = res.name,
+                    country = res.sys.country,
+                    tempC = "%.0f".format(res.main.temp),
+                    feelsLikeC = "%.0f".format(feels),
+                    windKmh = "%.0f".format(windKmH),
+                    humidityPct = "${res.main.humidity}",
+                    pressureMbar = "${res.main.pressure}",
+                    rainfallMm = "%.0f".format(rainMm),
+                    conditionMain = res.weather.firstOrNull()?.main ?: "--",
+                    weatherCode = res.weather.firstOrNull()?.id,
                     status = "Done",
                     error = null
                 )
