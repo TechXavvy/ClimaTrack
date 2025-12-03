@@ -23,12 +23,11 @@ class HomeViewModel(
     private val _ui = MutableStateFlow(HomeUiState())
     val ui: StateFlow<HomeUiState> = _ui
 
-    /** Call this from the UI (button, onStart, etc.) */
-    fun load(lat: Double, lon: Double) {
+    /** Call this once you have coordinates. */
+    fun loadByCoords(lat: Double, lon: Double) {
         _ui.value = _ui.value.copy(status = "Loading...", error = null)
         viewModelScope.launch {
             try {
-                // Uses your existing repository’s fetch+cache method
                 val result = repo.getAndCacheCurrent(lat, lon, apiKey)
                 _ui.value = HomeUiState(
                     city = result.name,
@@ -37,15 +36,11 @@ class HomeViewModel(
                     error = null
                 )
             } catch (e: Exception) {
-                _ui.value = _ui.value.copy(
-                    status = "Error",
-                    error = e.message ?: "Unknown error"
-                )
+                _ui.value = _ui.value.copy(status = "Error", error = e.message ?: "Unknown error")
             }
         }
     }
 
-    /** Simple factory so we can pass apiKey without DI right now */
     companion object {
         fun provideFactory(apiKey: String): ViewModelProvider.Factory =
             object : ViewModelProvider.Factory {
